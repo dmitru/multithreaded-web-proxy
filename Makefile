@@ -13,7 +13,7 @@ mkdirs:
 	mkdir -p $(BIN_DIR)
 	mkdir -p $(INCLUDE_DIR)
 
-server: $(SRC_DIR)/server.cpp 
+server: $(SRC_DIR)/server.cpp  $(SRC_DIR)/utils.cpp $(SRC_DIR)/request_handler.cpp $(SRC_DIR)/http_utils.cpp
 	$(CC) $(CC_OPTIONS) -o $(BIN_DIR)/$@ $^
 
 clean:
