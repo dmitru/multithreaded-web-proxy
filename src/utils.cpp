@@ -19,13 +19,7 @@
 
 void log(const std::string &msg)
 {
-    time_t raw_time;
-    std::time(&raw_time);
-    auto timeinfo = localtime(&raw_time);
-
-    char buffer[256];
-    std::strftime(buffer, sizeof(buffer), "%F %T", timeinfo);
-    std::cout << "[ " << buffer << " ]: " << msg << std::endl;
+    std::cout << "SERVER LOG: " << msg << std::endl;
 }
 
 void print_error_and_die(const std::string &msg, int exit_status)
@@ -106,4 +100,32 @@ HostInfo* wait_for_client_and_accept(int listening_socket)
     }
 
     return client_info;
+}
+
+std::vector<std::string> split(std::string source, char delimiter)
+{
+    std::vector<std::string> result;
+    int colon_pos = source.find(delimiter);
+    if (colon_pos != std::string::npos) {
+        std::string part_one = source.substr(0, colon_pos);
+        std::string part_two = source.substr(colon_pos + 1);
+        result.push_back(part_one);
+        result.push_back(part_two);
+    } else {
+        result.push_back(source);
+        result.push_back("");
+    }
+    return result;
+}
+
+std::vector<std::string> split_all(std::string source, char delimiter)
+{
+    std::vector<std::string> result;
+    std::string string_left = source;
+    while (!string_left.empty()) {
+        std::vector<std::string> split_result = split(string_left, delimiter);
+        result.push_back(split_result[0]);
+        string_left = split_result[1];
+    }
+    return result;
 }

@@ -13,6 +13,9 @@ struct HttpMessage {
 	std::string body;
 
 	std::string to_string() const;
+	std::string to_log_string() const;
+
+	std::string get_request_url() const;
 };
 
 HttpMessage* read_http_message_from_socket(int socket_descriptor);

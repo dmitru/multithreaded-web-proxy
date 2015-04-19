@@ -92,7 +92,17 @@ HttpMessage* read_http_message_from_socket(int sd)
     return new HttpMessage { http_header, body_string };
 }
 
-std::string HttpMessage::to_string() const
+std::string HttpMessage::get_request_url() const 
+{
+	auto parts = split_all(this->header.request_status_line, ' ');
+	if (parts.size() > 1) {
+		return parts[1];
+	} else {
+		return "/";
+	}
+}
+
+std::string HttpMessage::to_log_string() const
 {
 	std::stringstream sstream;
 	sstream << "Status/request line:\n\t" << this->header.request_status_line << "\n" << "Headers:\n";
@@ -100,5 +110,17 @@ std::string HttpMessage::to_string() const
     	sstream << "\t" << iterator->first << ": " << iterator->second << "\n";
 	}
 	sstream << "Body: " << this->body.size() << " bytes long, omitted in logs";
+	return sstream.str();
+}
+
+std::string HttpMessage::to_string() const
+{
+	std::stringstream sstream;
+	sstream << this->header.request_status_line << "\r\n";
+	for (auto iterator = this->header.headers.begin(); iterator != this->header.headers.end(); iterator++) {
+    	sstream << iterator->first << ": " << iterator->second << "\r\n";
+	}
+	sstream << "\r\n";
+	sstream << this->body;
 	return sstream.str();
 }

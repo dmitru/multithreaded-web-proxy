@@ -4,6 +4,7 @@
 #include <iostream>
 #include <algorithm>
 #include <sstream>
+#include <vector>
 #include <string>
 #include <map>
 #include <ctime>
@@ -53,3 +54,12 @@ HostInfo* wait_for_client_and_accept(int listening_socket);
 struct sockaddr_in create_listening_socket_address(const ParsedArguments &arguments);
 
 int create_listening_socket(struct sockaddr_in *socket_address);
+
+
+/*
+  Miscelleneous
+*/
+std::vector<std::string> split(std::string source, char delimiter);
+std::vector<std::string> split_all(std::string source, char delimiter);
+
+
