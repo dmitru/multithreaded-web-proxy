@@ -82,10 +82,10 @@ struct sockaddr_in create_listening_socket_address(const ParsedArguments &argume
 
 HostInfo* wait_for_client_and_accept(int listening_socket)
 {
-    auto *client_info = new HostInfo();
+    HostInfo *client_info = new HostInfo();
   
     struct sockaddr_in client_address;
-    auto addr_size = static_cast<socklen_t>(sizeof(client_address));
+    socklen_t addr_size = static_cast<socklen_t>(sizeof(client_address));
     client_info->socket_fd = accept(listening_socket, (struct sockaddr*)&client_address, &addr_size);
 
     char client_host[INET_ADDRSTRLEN];

@@ -13,15 +13,11 @@ HttpHeader make_http_header_from_string(const std::string &str)
 
 	std::string line;
 	while (std::getline(sstream, line, '\n')) {
-		int colon_pos = line.find(':');
-		if (colon_pos != std::string::npos) {
-			auto header_name = line.substr(0, colon_pos);
-			auto header_value = line.substr(colon_pos + 1);
-			header.headers[header_name] = header_value;
+		std::vector<std::string> header_parts = split(line, ':');
+		if (header_parts[1].empty()) {
+			log("Malformed HTTP header line: " + line);
 		} else {
-			std::stringstream msgstream;
-			msgstream << "Malformed HTTP header line: " << line;
-			log(msgstream.str());
+			header.headers[header_parts[0]] = header_parts[1];
 		}
 	}
 
@@ -89,12 +85,15 @@ HttpMessage* read_http_message_from_socket(int sd)
     	body_string = "";
     }
 
-    return new HttpMessage { http_header, body_string };
+	HttpMessage *result = new HttpMessage();
+	result->header = http_header;
+	result->body = body_string;
+    return result;
 }
 
 std::string HttpMessage::get_request_url() const 
 {
-	auto parts = split_all(this->header.request_status_line, ' ');
+	std::vector<std::string> parts = split_all(this->header.request_status_line, ' ');
 	if (parts.size() > 1) {
 		return parts[1];
 	} else {
@@ -106,7 +105,8 @@ std::string HttpMessage::to_log_string() const
 {
 	std::stringstream sstream;
 	sstream << "Status/request line:\n\t" << this->header.request_status_line << "\n" << "Headers:\n";
-	for (auto iterator = this->header.headers.begin(); iterator != this->header.headers.end(); iterator++) {
+	for (std::map<std::string, std::string>::const_iterator iterator = this->header.headers.begin(); 
+			iterator != this->header.headers.end(); iterator++) {
     	sstream << "\t" << iterator->first << ": " << iterator->second << "\n";
 	}
 	sstream << "Body: " << this->body.size() << " bytes long, omitted in logs";
@@ -117,7 +117,8 @@ std::string HttpMessage::to_string() const
 {
 	std::stringstream sstream;
 	sstream << this->header.request_status_line << "\r\n";
-	for (auto iterator = this->header.headers.begin(); iterator != this->header.headers.end(); iterator++) {
+	for (std::map<std::string, std::string>::const_iterator iterator = this->header.headers.begin();
+	 		iterator != this->header.headers.end(); iterator++) {
     	sstream << iterator->first << ": " << iterator->second << "\r\n";
 	}
 	sstream << "\r\n";

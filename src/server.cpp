@@ -15,7 +15,7 @@ int main(int argc, char* argv[])
     // Entering the main loop, waiting for clients to connect
     while (true)
     {
-        auto client_info = wait_for_client_and_accept(listening_socket);
+        HostInfo* client_info = wait_for_client_and_accept(listening_socket);
 
         pthread_t client_thread;
         if ( pthread_create(&client_thread, NULL, handle_client_connection, client_info) != 0 ) {

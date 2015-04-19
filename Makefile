@@ -4,7 +4,7 @@ INCLUDE_DIR=./include
 BIN_DIR=./bin
 
 CC=g++
-CC_OPTIONS=-O3 -lpthread -I$(INCLUDE_DIR) -std=c++11 -g
+CC_OPTIONS=-O3 -lpthread -I$(INCLUDE_DIR) -g
 
 all: mkdirs server
 	@echo "Done!"

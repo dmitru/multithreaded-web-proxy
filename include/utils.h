@@ -28,8 +28,8 @@ struct ParsedArguments
 };
 
 struct HostInfo {
-  std::string hostname = "";
-  int port = -1;
+  std::string hostname;
+  int port;
   int socket_fd;
 };
 
