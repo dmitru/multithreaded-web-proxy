@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include <stdexcept>
 #include <iostream>
 #include <algorithm>
 #include <sstream>
@@ -90,4 +91,9 @@ inline std::string trim(const std::string &s)
 
 bool is_host_blocked(const std::string &hostname, const std::string &sites_blocked_list_file);
 std::string filter_words(const std::string &str, const std::string &filtered_words_list);
+
+char rand_char();
+std::string random_string(size_t length);
+
+char *strnstr(const char *haystack, const char *needle, size_t len);
 

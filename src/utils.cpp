@@ -283,4 +283,42 @@ std::string filter_words(const std::string &str, const std::string &filtered_wor
     return result;
 }
 
+char rand_char()
+{
+    const char charset[] =
+    "0123456789"
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "abcdefghijklmnopqrstuvwxyz";
+    const size_t max_index = (sizeof(charset) - 1);
+    return charset[ rand() % max_index ];
+}
 
+std::string random_string( size_t length )
+{
+    std::string str(length,0);
+    std::generate_n( str.begin(), length, rand_char );
+    return str;
+}
+
+char *strnstr(const char *haystack, const char *needle, size_t len)
+{
+        int i;
+        size_t needle_len;
+
+        /* segfault here if needle is not NULL terminated */
+        if (0 == (needle_len = strlen(needle)))
+                return (char *)haystack;
+
+        /* Limit the search if haystack is shorter than 'len' */
+        len = strnlen(haystack, len);
+
+        for (i=0; i<(int)(len-needle_len); i++)
+        {
+                if ((haystack[0] == needle[0]) &&
+                        (0 == strncmp(haystack, needle, needle_len)))
+                        return (char *)haystack;
+
+                haystack++;
+        }
+        return NULL;
+}

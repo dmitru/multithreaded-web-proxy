@@ -8,22 +8,6 @@ std::map<std::string, std::string> url_to_file_cache_map;
 
 extern ParsedArguments parsedArguments;
 
-char rand_char()
-{
-    const char charset[] =
-    "0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    "abcdefghijklmnopqrstuvwxyz";
-    const size_t max_index = (sizeof(charset) - 1);
-    return charset[ rand() % max_index ];
-};
-
-std::string random_string( size_t length )
-{
-    std::string str(length,0);
-    std::generate_n( str.begin(), length, rand_char );
-    return str;
-}
 
 void* handle_client_connection(void* arg)
 {
