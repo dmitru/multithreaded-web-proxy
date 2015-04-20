@@ -17,6 +17,7 @@
 #include <resolv.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <netdb.h>
 
 /*
  Structures used throughout the projects
@@ -55,6 +56,10 @@ struct sockaddr_in create_listening_socket_address(const ParsedArguments &argume
 
 int create_listening_socket(struct sockaddr_in *socket_address);
 
+int create_socket_to_server(const std::string &hostport);
+int create_socket_to_server(const std::string &host, int port);
+
+int send_to_socket(int target_sockfd, const std::string &data);
 
 /*
   Miscelleneous

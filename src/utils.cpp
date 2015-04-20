@@ -80,6 +80,69 @@ struct sockaddr_in create_listening_socket_address(const ParsedArguments &argume
     return addr;
 }
 
+int create_socket_to_server(const std::string &hostport)
+{
+    std::vector<std::string> parts = split(hostport, ':');
+    std::string host = parts[0];
+    int port = parts[1].empty()? 80 : std::atoi(parts[1].c_str());
+    return create_socket_to_server(host, port);
+}
+
+int hostname_to_ip(const std::string &hostname, std::string &ip_out)
+{
+    struct hostent *he;
+    struct in_addr **addr_list;
+    int i;
+         
+    if ((he = gethostbyname(hostname.c_str())) == NULL) {
+        log("Error in gethostbyname() while resolving hostname to IP");
+        return 1;
+    }
+ 
+    addr_list = (struct in_addr **) he->h_addr_list;
+     
+    char ip_buf[16];
+    for(i = 0; addr_list[i] != NULL; i++) {
+        strcpy(ip_buf, inet_ntoa(*addr_list[i]));
+        ip_out = std::string(ip_buf);
+        return 0;
+    }
+     
+    return 1;
+}
+
+int create_socket_to_server(const std::string &host, int port)
+{
+    int sockfd;
+    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        log("Couldn't create socket to remote server at " + host);
+        return -1;
+    } 
+
+    struct sockaddr_in serv_addr; 
+
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(port); 
+
+    std::string ip_addr;
+    if (hostname_to_ip(host, ip_addr) < 0) {
+        return -1;
+    }
+    log("Resolved hostname " + host + " to ip " + ip_addr);
+
+    if (inet_pton(AF_INET, ip_addr.c_str(), &serv_addr.sin_addr) < 0) {
+        log("inet_pton() error occured");
+        return -1;
+    } 
+
+    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+       log("connect() error while connecting to remote server " + host);
+       return -1;
+    } 
+
+    return sockfd;
+}
+
 HostInfo* wait_for_client_and_accept(int listening_socket)
 {
     HostInfo *client_info = new HostInfo();
@@ -100,6 +163,24 @@ HostInfo* wait_for_client_and_accept(int listening_socket)
     }
 
     return client_info;
+}
+
+int send_to_socket(int sock, const std::string &data)
+{
+    const char *buf = data.c_str();
+    size_t bytes_left = data.size();
+    size_t offset = 0;
+
+    while (bytes_left > 0) {
+        int bytes_sent = send(sock, buf + offset, bytes_left, 0);
+        if (bytes_sent < 0) {
+            return -1;
+        }
+        offset += bytes_sent;
+        bytes_left -= bytes_sent;
+    }
+
+    return 0;
 }
 
 std::vector<std::string> split(std::string source, char delimiter)
@@ -129,3 +210,5 @@ std::vector<std::string> split_all(std::string source, char delimiter)
     }
     return result;
 }
+
+

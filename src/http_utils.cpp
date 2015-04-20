@@ -2,6 +2,8 @@
 #include "utils.h"
 #include "http_utils.h"
 
+#include "zlib.h"
+
 // The maximum length of HTTP request is 8190, according to Apache docs
 const int HTTP_REQUEST_MAX_LENGTH = 8200;
 
@@ -22,6 +24,92 @@ HttpHeader make_http_header_from_string(const std::string &str)
 	}
 
 	return header;
+}
+
+#define MOD_GZIP_ZLIB_CFACTOR    9
+#define MOD_GZIP_ZLIB_BSIZE      8096
+#define MOD_GZIP_ZLIB_WINDOWSIZE 15
+
+std::string decompress_deflate(const std::string& str)
+{
+    z_stream zs;                        // z_stream is zlib's control structure
+    memset(&zs, 0, sizeof(zs));
+
+    if (inflateInit(&zs) != Z_OK)
+        throw(std::runtime_error("inflateInit failed while decompressing."));
+
+    zs.next_in = (Bytef*)str.data();
+    zs.avail_in = str.size();
+
+    int ret;
+    char outbuffer[32768];
+    std::string outstring;
+
+    // get the decompressed bytes blockwise using repeated calls to inflate
+    do {
+        zs.next_out = reinterpret_cast<Bytef*>(outbuffer);
+        zs.avail_out = sizeof(outbuffer);
+
+        ret = inflate(&zs, 0);
+
+        if (outstring.size() < zs.total_out) {
+            outstring.append(outbuffer,
+                             zs.total_out - outstring.size());
+        }
+
+    } while (ret == Z_OK);
+
+    inflateEnd(&zs);
+
+    if (ret != Z_STREAM_END) {          // an error occurred that was not EOF
+        std::ostringstream oss;
+        oss << "Exception during zlib decompression: (" << ret << ") "
+            << zs.msg;
+        throw(std::runtime_error(oss.str()));
+    }
+
+    return outstring;
+}
+
+std::string decompress_gzip(const std::string& str)
+{
+    z_stream zs;                        // z_stream is zlib's control structure
+    memset(&zs, 0, sizeof(zs));
+
+    if (inflateInit2(&zs, MAX_WBITS + 32) != Z_OK)
+        throw(std::runtime_error("inflateInit failed while decompressing."));
+
+    zs.next_in = (Bytef*)str.data();
+    zs.avail_in = str.size();
+
+    int ret;
+    char outbuffer[32768];
+    std::string outstring;
+
+    // get the decompressed bytes blockwise using repeated calls to inflate
+    do {
+        zs.next_out = reinterpret_cast<Bytef*>(outbuffer);
+        zs.avail_out = sizeof(outbuffer);
+
+        ret = inflate(&zs, 0);
+
+        if (outstring.size() < zs.total_out) {
+            outstring.append(outbuffer,
+                             zs.total_out - outstring.size());
+        }
+
+    } while (ret == Z_OK);
+
+    inflateEnd(&zs);
+
+    if (ret != Z_STREAM_END) {          // an error occurred that was not EOF
+        std::ostringstream oss;
+        oss << "Exception during zlib decompression: (" << ret << ") "
+            << zs.msg;
+        throw(std::runtime_error(oss.str()));
+    }
+
+    return outstring;
 }
 
 HttpMessage* read_http_message_from_socket(int sd)
@@ -45,6 +133,7 @@ HttpMessage* read_http_message_from_socket(int sd)
         // Check if the end of HTTP header was encountered
         char *headers_end = strnstr(buffer, "\r\n\r\n", bytes_read);
         if (headers_end != NULL) {
+
        		// Reached end of headers
 			*headers_end = '\0';
 			header_string = std::string(buffer);
@@ -52,7 +141,10 @@ HttpMessage* read_http_message_from_socket(int sd)
 			buffer[bytes_read] = '\0';
 			if ((headers_end + 4 - buffer) < bytes_read) {
 				// We've read a part of message's body - append it to body_string
-				body_string += std::string(headers_end + 4);
+				std::string t;
+				t.resize(bytes_read - (headers_end + 4 - buffer));
+				std::copy(buffer + (headers_end + 4 - buffer), buffer + bytes_read, t.begin());
+				body_string += t;
 			}
 
 			break;
@@ -62,32 +154,91 @@ HttpMessage* read_http_message_from_socket(int sd)
     while (true);
 
     HttpHeader http_header = make_http_header_from_string(header_string);
+    HttpMessage *result = new HttpMessage();
+    result->header = http_header;
 
-    // If there's Content-Length header, read the body
-    if (http_header.headers.find("Content-Length") != http_header.headers.end()) {
-    	int content_length = atoi(http_header.headers["Content-Length"].c_str());
-    	do {
-			int bytes_read_this_iteration = recv(sd, buffer, sizeof(buffer), 0);
-	        if (bytes_read_this_iteration < 0) {
-	        	log("Error in recv() while reading data from the client's socket");
-	        	return nullptr;
-	        }
+    // If there's Content-Length or Content-Encoding header, read the body
+    if ((http_header.headers.find("Content-Length") != http_header.headers.end()) || 
+    	(http_header.headers.find("Content-Encoding") != http_header.headers.end())) {
 
-	        if (bytes_read_this_iteration == 0) {
-	        	// No more data from the client
-	        	break;
-	        } else {
-	        	buffer[bytes_read_this_iteration] = '\0';
-	        	body_string += std::string(buffer);
-	        }
-    	} while (true);
+    	if ((http_header.headers.find("Content-Encoding") == http_header.headers.end()) || 
+    		((http_header.headers.find("Content-Encoding") != http_header.headers.end()) && (http_header.headers["Content-Encoding"] == "identity"))) {
+    		// Case 1: body is not compressed
+
+    		std::cerr << "NOT compressed" << std::endl;
+
+	    	int content_length = atoi(http_header.headers["Content-Length"].c_str());
+	    	int bytes_left = content_length - body_string.size();
+
+	    	if (bytes_left > 0) {
+		    	do {
+					int bytes_read_this_iteration = recv(sd, buffer, bytes_left, 0);
+					
+			        if (bytes_read_this_iteration < 0) {
+			        	log("Error in recv() while reading data from the client's socket");
+			        	return nullptr;
+			        }
+
+			        bytes_left -= bytes_read_this_iteration;
+
+			        if (bytes_read_this_iteration == 0) {
+			        	// No more data from the client
+			        	break;
+			        } else {
+			        	std::string t;
+			        	t.resize(bytes_read_this_iteration);
+			        	std::copy(buffer, buffer + bytes_read_this_iteration, t.begin());
+			        	body_string += t;
+			        }
+
+		    	} while (true);
+	    	}
+    	} else {
+    		// Case 2: body is compressed - just read body until no more data in the socket
+			std::cerr << "compressed" << std::endl;
+
+    		do {
+				int bytes_read_this_iteration = recv(sd, buffer, sizeof(buffer), 0);
+
+				std::cerr << bytes_read_this_iteration << std::endl;
+				
+		        if (bytes_read_this_iteration < 0) {
+		        	log("Error in recv() while reading data from the client's socket");
+		        	return nullptr;
+		        }
+
+		        if (bytes_read_this_iteration == 0) {
+		        	break;
+		        } else {
+		        	std::string t;
+		        	t.resize(bytes_read_this_iteration);
+		        	std::copy(buffer, buffer + bytes_read_this_iteration, t.begin());
+		        	body_string += t;
+		        }
+
+		    } while (true);
+
+		    log("Target server's reply is compressed - starting decompresison");
+		    try {
+		    	if (http_header.headers["Content-Encoding"] == "gzip") {
+					body_string = decompress_gzip(body_string);
+				} else if (http_header.headers["Content-Encoding"] == "deflate") {
+					body_string = decompress_deflate(body_string);
+				}
+				result->header.headers["Content-Encoding"] = "identity";
+			} catch (std::runtime_error e) {
+				log("Error while uncompressing target server's response: " + std::string(e.what()));
+				return NULL;
+			}
+    	}
     } else {
     	body_string = "";
     }
 
-	HttpMessage *result = new HttpMessage();
-	result->header = http_header;
 	result->body = body_string;
+	std::stringstream content_length_stream;
+	content_length_stream << body_string.size();
+	result->header.headers["Content-Length"] = content_length_stream.str();
     return result;
 }
 
