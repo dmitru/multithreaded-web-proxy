@@ -19,3 +19,5 @@ struct HttpMessage {
 };
 
 HttpMessage* read_http_message_from_socket(int socket_descriptor);
+
+HttpMessage* make_http_response(const std::string &code);

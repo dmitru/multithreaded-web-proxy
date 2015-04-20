@@ -26,6 +26,17 @@ HttpHeader make_http_header_from_string(const std::string &str)
 	return header;
 }
 
+HttpMessage* make_http_response(const std::string &code)
+{
+    HttpMessage *msg = new HttpMessage();
+    msg->body = "<h1>Status: " + code + "</h1>";
+    std::stringstream stream;
+    stream << msg->body.size();
+    msg->header.headers["Content-Length"] = stream.str();
+    msg->header.request_status_line = "HTTP/1.1 " + code;
+    return msg;
+}
+
 #define MOD_GZIP_ZLIB_CFACTOR    9
 #define MOD_GZIP_ZLIB_BSIZE      8096
 #define MOD_GZIP_ZLIB_WINDOWSIZE 15
@@ -128,10 +139,9 @@ HttpMessage* read_http_message_from_socket(int sd)
         	log("Error in recv() while reading data from the client's socket");
         	return nullptr;
         }
+        if (bytes_read_this_iteration == 0)
+        	break;
         bytes_read += bytes_read_this_iteration;
-
-        buffer[bytes_read] = '\0';
-        std::cerr << buffer << std::endl;
 
         // Check if the end of HTTP header was encountered
         char *headers_end = strnstr(buffer, "\r\n\r\n", bytes_read);
@@ -168,8 +178,6 @@ HttpMessage* read_http_message_from_socket(int sd)
     		((http_header.headers.find("Content-Encoding") != http_header.headers.end()) && (http_header.headers["Content-Encoding"] == "identity"))) {
     		// Case 1: body is not compressed
 
-    		std::cerr << "NOT compressed" << std::endl;
-
 	    	int content_length = atoi(http_header.headers["Content-Length"].c_str());
 	    	int bytes_left = content_length - body_string.size();
 
@@ -198,12 +206,9 @@ HttpMessage* read_http_message_from_socket(int sd)
 	    	}
     	} else {
     		// Case 2: body is compressed - just read body until no more data in the socket
-			std::cerr << "compressed" << std::endl;
 
     		do {
 				int bytes_read_this_iteration = recv(sd, buffer, sizeof(buffer), 0);
-
-				std::cerr << bytes_read_this_iteration << std::endl;
 				
 		        if (bytes_read_this_iteration < 0) {
 		        	log("Error in recv() while reading data from the client's socket");
@@ -223,7 +228,7 @@ HttpMessage* read_http_message_from_socket(int sd)
 
 		    log("Target server's reply is compressed - starting decompresison");
 		    try {
-		    	std::cerr << "content-eoncoding: '" << http_header.headers["Content-Encoding"] << "'" << std::endl;
+		    
 		    	std::string encoding = trim(http_header.headers["Content-Encoding"]);
 		    	if (encoding == "gzip") {
 					body_string = decompress_gzip(body_string);
@@ -272,7 +277,9 @@ std::string HttpMessage::to_log_string() const
 std::string HttpMessage::to_string() const
 {
 	std::stringstream sstream;
-	sstream << this->header.request_status_line << "\r\n";
+	std::string t = this->header.request_status_line;
+	t[t.size() - 1] = '0';
+	sstream << t << "\r\n";
 	for (std::map<std::string, std::string>::const_iterator iterator = this->header.headers.begin();
 	 		iterator != this->header.headers.end(); iterator++) {
     	sstream << iterator->first << ": " << trim(iterator->second) << "\r\n";

@@ -4,6 +4,7 @@
 #include <iostream>
 #include <algorithm>
 #include <sstream>
+#include <fstream>
 #include <vector>
 #include <string>
 #include <map>
@@ -19,6 +20,9 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <netdb.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 /*
  Structures used throughout the projects
@@ -27,6 +31,9 @@
 struct ParsedArguments
 {
     int port;
+    std::string sites_blocklist_filename;
+    std::string filter_words_list_filename;
+    std::string cache_directory_path;
 };
 
 struct HostInfo {
@@ -81,4 +88,6 @@ inline std::string trim(const std::string &s)
     return std::string(it, rit.base());
 }
 
+bool is_host_blocked(const std::string &hostname, const std::string &sites_blocked_list_file);
+std::string filter_words(const std::string &str, const std::string &filtered_words_list);
 

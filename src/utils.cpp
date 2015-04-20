@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <sstream>
 #include <string>
+#include <fstream>
 #include <ctime>
 #include <cstdlib>
 #include <stdlib.h>
@@ -14,35 +15,45 @@
 #include <resolv.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <set>
 
 #include "utils.h"
 
+pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 void log(const std::string &msg)
 {
+    pthread_mutex_lock(&log_mutex);
     std::cout << "SERVER LOG: " << msg << std::endl;
+    pthread_mutex_unlock(&log_mutex);
 }
 
 void print_error_and_die(const std::string &msg, int exit_status)
 {
+    pthread_mutex_lock(&log_mutex);
     perror(msg.c_str());
     exit(exit_status);
+    pthread_mutex_unlock(&log_mutex);
 }
 
 void print_usage_and_die(int exit_status)
 {
-    const char *USAGE_STRING = "Usage: ./server <PORT NUMBER>";
+    const char *USAGE_STRING = "Usage: ./server <PORT NUMBER> <SITES_BLOCKLIST> <WORDS_FILTER> <CACHE_DIRECTORY>";
     std::cerr << USAGE_STRING << std::endl;
     exit(exit_status);
 }
 
 ParsedArguments parse_arguments(int argc, char *argv[])
 {
-    if (argc > 2) {
+    if (argc > 5 || argc < 5) {
         print_usage_and_die();
     }
 
     ParsedArguments arguments;
     arguments.port = (argc > 1)? atoi(argv[1]) : 8888;
+    arguments.sites_blocklist_filename = argv[2];
+    arguments.filter_words_list_filename = argv[3];
+    arguments.cache_directory_path = argv[4];
     return arguments;
 }
 
@@ -95,7 +106,7 @@ int hostname_to_ip(const std::string &hostname, std::string &ip_out)
     int i;
          
     if ((he = gethostbyname(hostname.c_str())) == NULL) {
-        log("Error in gethostbyname() while resolving hostname to IP");
+        log("Error in gethostbyname() while resolving hostname to IP for hostname '" + hostname + "'");
         return 1;
     }
  
@@ -208,6 +219,67 @@ std::vector<std::string> split_all(std::string source, char delimiter)
         result.push_back(split_result[0]);
         string_left = split_result[1];
     }
+    return result;
+}
+
+bool is_host_blocked(const std::string &hostname, const std::string &sites_blocked_list_file)
+{
+    std::ifstream iss;
+    iss.open(sites_blocked_list_file);
+    std::string str;
+    while (std::getline(iss, str)) {
+        str = trim(str);
+        if (str.empty()) 
+            continue;
+        if (str == hostname) 
+            return true;
+    }
+    iss.close();
+
+    return false;
+}
+
+std::string filter_words(const std::string &str, const std::string &filtered_words_list_file)
+{
+    static std::vector<std::string> words;
+
+    if (words.empty()) {
+        std::ifstream is;
+        is.open(filtered_words_list_file);
+        std::string str;
+        while (std::getline(is, str)) {
+            std::string word_lowercase = trim(str);
+            std::transform(word_lowercase.begin(), word_lowercase.end(), word_lowercase.begin(), ::tolower);
+            words.push_back(word_lowercase);
+        }
+        is.close();
+    }
+    
+    std::string str_lowercase = std::string(str);
+    for (int i = 0; i < str_lowercase.size() - 1; i++) {
+        if (str_lowercase[i] == '<') {
+            while (i < str_lowercase.size() - 1 && str_lowercase[i] != '>') {
+                str_lowercase[i] = ' ';
+                i++;
+            }
+        }
+    }
+
+    std::string result = std::string(str);
+    std::transform(str_lowercase.begin(), str_lowercase.end(), str_lowercase.begin(), ::tolower);
+
+    for (int i = 0; i < words.size(); i++) {
+        std::string &word = words[i];
+        std::string::size_type n = 0;
+        std::string replacement = "CENSORED";
+        while ( ( n = str_lowercase.find( word, n ) ) != std::string::npos )
+        {
+            str_lowercase.replace( n, word.size(), replacement );
+            result.replace( n, word.size(), replacement );
+            n += replacement.size();
+        }
+    }
+        
     return result;
 }
 
