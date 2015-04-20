@@ -19,7 +19,7 @@ HttpHeader make_http_header_from_string(const std::string &str)
 		if (header_parts[1].empty()) {
 			log("Malformed HTTP header line: " + line);
 		} else {
-			header.headers[header_parts[0]] = header_parts[1];
+			header.headers[header_parts[0]] = trim(header_parts[1]);
 		}
 	}
 
@@ -130,6 +130,9 @@ HttpMessage* read_http_message_from_socket(int sd)
         }
         bytes_read += bytes_read_this_iteration;
 
+        buffer[bytes_read] = '\0';
+        std::cerr << buffer << std::endl;
+
         // Check if the end of HTTP header was encountered
         char *headers_end = strnstr(buffer, "\r\n\r\n", bytes_read);
         if (headers_end != NULL) {
@@ -220,12 +223,17 @@ HttpMessage* read_http_message_from_socket(int sd)
 
 		    log("Target server's reply is compressed - starting decompresison");
 		    try {
-		    	if (http_header.headers["Content-Encoding"] == "gzip") {
+		    	std::cerr << "content-eoncoding: '" << http_header.headers["Content-Encoding"] << "'" << std::endl;
+		    	std::string encoding = trim(http_header.headers["Content-Encoding"]);
+		    	if (encoding == "gzip") {
 					body_string = decompress_gzip(body_string);
-				} else if (http_header.headers["Content-Encoding"] == "deflate") {
+				} else if (encoding == "deflate") {
 					body_string = decompress_deflate(body_string);
 				}
 				result->header.headers["Content-Encoding"] = "identity";
+				std::stringstream content_length_stream;
+				content_length_stream << body_string.size();
+				result->header.headers["Content-Length"] = content_length_stream.str();
 			} catch (std::runtime_error e) {
 				log("Error while uncompressing target server's response: " + std::string(e.what()));
 				return NULL;
@@ -236,9 +244,6 @@ HttpMessage* read_http_message_from_socket(int sd)
     }
 
 	result->body = body_string;
-	std::stringstream content_length_stream;
-	content_length_stream << body_string.size();
-	result->header.headers["Content-Length"] = content_length_stream.str();
     return result;
 }
 
@@ -270,9 +275,11 @@ std::string HttpMessage::to_string() const
 	sstream << this->header.request_status_line << "\r\n";
 	for (std::map<std::string, std::string>::const_iterator iterator = this->header.headers.begin();
 	 		iterator != this->header.headers.end(); iterator++) {
-    	sstream << iterator->first << ": " << iterator->second << "\r\n";
+    	sstream << iterator->first << ": " << trim(iterator->second) << "\r\n";
 	}
 	sstream << "\r\n";
-	sstream << this->body;
+	if (!this->body.empty()) {
+		sstream << this->body;
+	}
 	return sstream.str();
 }

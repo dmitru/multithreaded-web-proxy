@@ -8,7 +8,7 @@ CC=g++
 CC_OPTIONS=-O3 -lpthread -lz -I$(INCLUDE_DIR) -I$(LIBS_DIR)/zlib-1.2.8 -g 
 LIBS=$(LIBS_DIR)/zlib-1.2.8/gzlib.o
 
-all: zlib mkdirs server
+all: mkdirs server
 	@echo "Done!"
 
 zlib:

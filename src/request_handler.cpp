@@ -30,6 +30,7 @@ void* handle_client_connection(void* arg)
 	size_t request_path_pos = redirected_message.header.request_status_line.find(request_path);
 	redirected_message.header.request_status_line.replace(request_path_pos, request_path.size(), redirect_path);
 	redirected_message.header.headers["Host"] = redirect_to;
+	//redirected_message.header.headers["Connection"] = "close";
 
 	log("Redirected request to " + redirect_to + ":\n" + redirected_message.to_log_string());
 
@@ -41,10 +42,12 @@ void* handle_client_connection(void* arg)
 		return NULL;
 	}
 
+	log("Sending message to target server...");
 	if (send_to_socket(target_sockfd, redirected_message.to_string()) < 0) {
 		log("Error while sending modified HTTP message to target server");
 		return NULL;
 	}
+	log("done");
 
 	// Receive target server's reply
 	HttpMessage *http_response_from_target_server = read_http_message_from_socket(target_sockfd);
@@ -52,7 +55,7 @@ void* handle_client_connection(void* arg)
 		return NULL;
 	}
 
-	log("Received response from target server:\n" + http_response_from_target_server->to_log_string());
+	log("Received response from target server:\n'" + http_response_from_target_server->to_log_string() + "'");
 
 	// Modify the reply before sending it back to the client
 
